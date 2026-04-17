@@ -1,0 +1,28 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    volumes:
+      - kuma-data:/app/data
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+
+  label-sync:
+    image: hunterreadca/kuma-label-sync
+    container_name: kuma-label-sync
+    restart: unless-stopped
+    depends_on:
+      - uptime-kuma
+    environment:
+      KUMA_URL: "http://uptime-kuma:3001"
+      KUMA_USERNAME: "${KUMA_USERNAME}"
+      KUMA_PASSWORD: "${KUMA_PASSWORD}"
+      SYNC_INTERVAL: "30"
+      LABEL_PREFIX: "kuma"
+      LOG_LEVEL: "INFO"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  kuma-data:

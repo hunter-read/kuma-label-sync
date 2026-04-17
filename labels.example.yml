@@ -1,0 +1,62 @@
+services:
+  nginx:
+    image: nginx:latest
+    labels:
+      kuma.enable: "true"
+      kuma.name: "Nginx Proxy"
+      kuma.group: "Infrastructure"
+      kuma.type: "http"
+      kuma.url: "http://nginx:80"
+      kuma.interval: "60"
+      kuma.maxretries: "3"
+      kuma.accepted_statuscodes: '["200-299"]'
+      kuma.tags: "env:prod,service:proxy"
+
+  postgres:
+    image: postgres:16
+    labels:
+      kuma.enable: "true"
+      kuma.name: "PostgreSQL"
+      kuma.group: "Databases"
+      kuma.type: "tcp"
+      kuma.hostname: "postgres"
+      kuma.port: "5432"
+      kuma.interval: "30"
+
+  api:
+    image: myapp/api:latest
+    labels:
+      kuma.enable: "true"
+      kuma.name: "API Health"
+      kuma.group: "Application"
+      kuma.type: "keyword"
+      kuma.url: "http://api:3000/health"
+      kuma.keyword: "healthy"
+      kuma.method: "GET"
+      kuma.interval: "30"
+      kuma.maxretries: "5"
+      kuma.headers: '{"X-Custom-Header": "value"}'
+      kuma.notification_ids: "1,2"
+      kuma.tags: "env:prod,team:backend"
+      kuma.ignoreTls: "false"
+
+  redis:
+    image: redis:7
+    labels:
+      kuma.enable: "true"
+      kuma.name: "Redis Cache"
+      kuma.group: "Databases"
+      kuma.type: "tcp"
+      kuma.hostname: "redis"
+      kuma.port: "6379"
+
+  dns-check:
+    image: alpine:latest
+    labels:
+      kuma.enable: "true"
+      kuma.name: "DNS Resolution"
+      kuma.type: "dns"
+      kuma.hostname: "example.com"
+      kuma.dns_resolve_type: "A"
+      kuma.dns_resolve_server: "1.1.1.1"
+      kuma.port: "53"
