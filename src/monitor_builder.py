@@ -72,20 +72,12 @@ def _coerce(value: str, target: Any) -> Any:
     return target(value)
 
 
-def parse_labels(
-    labels: dict[str, str], prefix: str = LABEL_PREFIX
-) -> Optional[dict]:
-    """Parse Docker labels into an Uptime Kuma monitor config dict.
+def _build_monitor(kuma_labels: dict[str, str], prefix: str) -> Optional[dict]:
+    """Build a single monitor config dict from a flat label map.
 
-    Returns None if kuma.enable is not 'true'.
+    kuma_labels keys are already stripped of the prefix (e.g. 'type', 'url').
+    Returns None if enable is not truthy.
     """
-    prefix_dot = f"{prefix}."
-    kuma_labels = {
-        k[len(prefix_dot):]: v
-        for k, v in labels.items()
-        if k.startswith(prefix_dot)
-    }
-
     if kuma_labels.get("enable", "").lower() not in ("true", "1", "yes"):
         return None
 
@@ -110,14 +102,11 @@ def parse_labels(
                     e,
                 )
         else:
-            # Pass through unknown labels as-is (forward compat)
             monitor[label_key] = value
 
-    # Group
     if "group" in kuma_labels:
         monitor["_group"] = kuma_labels["group"]
 
-    # Tags: "env:prod,team:backend"
     if "tags" in kuma_labels:
         monitor["_tags"] = []
         for tag_str in kuma_labels["tags"].split(","):
@@ -130,7 +119,6 @@ def parse_labels(
             else:
                 monitor["_tags"].append({"name": tag_str, "value": ""})
 
-    # Notification IDs: "1,2,3"
     if "notification_ids" in kuma_labels:
         monitor["notificationIDList"] = {
             int(nid.strip()): True
@@ -141,6 +129,59 @@ def parse_labels(
     return monitor
 
 
-def build_unique_key(container_id: str, container_name: str) -> str:
+def parse_labels(
+    labels: dict[str, str], prefix: str = LABEL_PREFIX
+) -> dict[str, dict]:
+    """Parse Docker labels into one or more Uptime Kuma monitor config dicts.
+
+    Supports two label schemes:
+
+    1. Flat (single monitor, backwards compatible):
+         kuma.enable=true  kuma.type=http  kuma.url=http://...
+       Returns {"_default": <monitor>}
+
+    2. Named (multiple monitors per container):
+         kuma.http.enable=true  kuma.http.type=http  kuma.http.url=http://...
+         kuma.docker.enable=true  kuma.docker.type=docker  ...
+       Returns {"http": <monitor>, "docker": <monitor>}
+
+    Named and flat labels must not be mixed on the same container.
+    Returns an empty dict if no enabled monitors are found.
+    """
+    prefix_dot = f"{prefix}."
+
+    # Partition labels: flat (kuma.field) vs named (kuma.<name>.<field>)
+    flat: dict[str, str] = {}
+    named: dict[str, dict[str, str]] = {}  # monitor_name → {field: value}
+
+    for k, v in labels.items():
+        if not k.startswith(prefix_dot):
+            continue
+        rest = k[len(prefix_dot):]
+        if "." in rest:
+            monitor_name, field = rest.split(".", 1)
+            named.setdefault(monitor_name, {})[field] = v
+        else:
+            flat[rest] = v
+
+    result: dict[str, dict] = {}
+
+    if named:
+        for monitor_name, mon_labels in named.items():
+            monitor = _build_monitor(mon_labels, f"{prefix}.{monitor_name}")
+            if monitor is not None:
+                result[monitor_name] = monitor
+    elif flat:
+        monitor = _build_monitor(flat, prefix)
+        if monitor is not None:
+            result["_default"] = monitor
+
+    return result
+
+
+def build_unique_key(container_id: str, container_name: str, monitor_name: str = "_default") -> str:
     """Build a stable key for tracking managed monitors."""
-    return f"{container_name}_{container_id[:12]}"
+    base = f"{container_name}_{container_id[:12]}"
+    if monitor_name == "_default":
+        return base
+    return f"{base}_{monitor_name}"

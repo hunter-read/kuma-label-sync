@@ -60,3 +60,29 @@ services:
       kuma.dns_resolve_type: "A"
       kuma.dns_resolve_server: "1.1.1.1"
       kuma.port: "53"
+
+  # Multiple monitors on a single container.
+  # Use kuma.<monitor_name>.<field> to define each monitor independently.
+  # Each named monitor must have its own kuma.<monitor_name>.enable: "true".
+  my-app:
+    image: myapp:latest
+    labels:
+      # HTTP availability check
+      kuma.http.enable: "true"
+      kuma.http.name: "My App (HTTP)"
+      kuma.http.group: "Application"
+      kuma.http.type: "http"
+      kuma.http.url: "http://my-app:8080/health"
+      kuma.http.interval: "60"
+      kuma.http.maxretries: "3"
+      kuma.http.tags: "env:prod,team:backend"
+
+      # Docker container status check
+      kuma.docker.enable: "true"
+      kuma.docker.name: "My App (Container)"
+      kuma.docker.group: "Application"
+      kuma.docker.type: "docker"
+      kuma.docker.docker_host: "1"
+      kuma.docker.docker_container: "my-app"
+      kuma.docker.interval: "30"
+      kuma.docker.tags: "env:prod,team:backend"

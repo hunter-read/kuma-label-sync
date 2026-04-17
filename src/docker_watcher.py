@@ -33,22 +33,31 @@ class DockerWatcher:
 
         for container in containers:
             labels = container.labels or {}
-            monitor = parse_labels(labels, self.config.LABEL_PREFIX)
-            if monitor is None:
+            monitors = parse_labels(labels, self.config.LABEL_PREFIX)
+            if not monitors:
                 continue
 
-            name = container.name or container.short_id
-            key = build_unique_key(container.id, name)
+            container_name = container.name or container.short_id
 
-            # Default name to container name if not set
-            if "name" not in monitor:
-                monitor["name"] = name
+            for monitor_name, monitor in monitors.items():
+                key = build_unique_key(container.id, container_name, monitor_name)
 
-            monitor["_container_key"] = key
-            desired[key] = monitor
-            logger.debug("Found labeled container: %s → %s", name, key)
+                if "name" not in monitor:
+                    if monitor_name == "_default":
+                        monitor["name"] = container_name
+                    else:
+                        monitor["name"] = f"{container_name} ({monitor_name})"
 
-        logger.info("Discovered %d labeled containers", len(desired))
+                monitor["_container_key"] = key
+                desired[key] = monitor
+                logger.debug(
+                    "Found labeled container: %s [%s] → %s",
+                    container_name,
+                    monitor_name,
+                    key,
+                )
+
+        logger.info("Discovered %d monitors across labeled containers", len(desired))
         return desired
 
     def listen_events(self, callback):

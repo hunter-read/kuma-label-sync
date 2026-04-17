@@ -10,6 +10,7 @@ a monitor is created. When it stops, the monitor is removed.
 - **Automatic discovery** — scans running containers for labels
 - **Event-driven** — listens for Docker start/stop events in real time
 - **Periodic sync** — full reconciliation on a configurable interval
+- **Multiple monitors per container** — define any number of monitors on one service
 - **Grouping** — automatically creates monitor groups
 - **Tagging** — attach arbitrary tags to monitors
 - **Notifications** — link existing notification channels by ID
@@ -64,6 +65,31 @@ services:
 ```
 
 That's it. The monitor appears in Uptime Kuma automatically.
+
+### 3. Multiple Monitors on One Container
+
+Add a monitor name between the prefix and the field to attach multiple monitors to a single container:
+
+```yaml
+services:
+  my-app:
+    image: myapp:latest
+    labels:
+      # HTTP availability check
+      kuma.http.enable: "true"
+      kuma.http.name: "My App (HTTP)"
+      kuma.http.type: "http"
+      kuma.http.url: "http://my-app:8080/health"
+
+      # Docker container status check
+      kuma.docker.enable: "true"
+      kuma.docker.name: "My App (Container)"
+      kuma.docker.type: "docker"
+      kuma.docker.docker_host: "1"
+      kuma.docker.docker_container: "my-app"
+```
+
+Each `<monitor_name>` block is independent — it can have its own type, group, tags, interval, and all other fields. The monitor name is arbitrary; use anything descriptive (`http`, `docker`, `tcp`, `heartbeat`, etc.).
 
 ## Environment Variables
 
@@ -533,6 +559,54 @@ labels:
 > **Note:** Requires Chromium to be available in the Uptime Kuma container.
 > Use the `louislam/uptime-kuma:1` image which includes it, or mount a
 > Chromium binary.
+
+---
+
+## Multiple Monitors per Container
+
+By default, labels use a flat structure (`kuma.<field>`) that creates one monitor per container.
+To create multiple monitors from a single container, add a monitor name as an extra segment:
+
+```
+kuma.<monitor_name>.<field>
+```
+
+Each named block is entirely independent and can define its own type, URL, group, tags, interval, etc.
+
+```yaml
+services:
+  my-app:
+    image: myapp:latest
+    labels:
+      # HTTP health check
+      kuma.http.enable: "true"
+      kuma.http.name: "My App (HTTP)"
+      kuma.http.group: "Application"
+      kuma.http.type: "http"
+      kuma.http.url: "http://my-app:8080/health"
+      kuma.http.interval: "60"
+      kuma.http.maxretries: "3"
+
+      # Docker container status
+      kuma.docker.enable: "true"
+      kuma.docker.name: "My App (Container)"
+      kuma.docker.group: "Application"
+      kuma.docker.type: "docker"
+      kuma.docker.docker_host: "1"
+      kuma.docker.docker_container: "my-app"
+      kuma.docker.interval: "30"
+
+      # TCP port check
+      kuma.tcp.enable: "true"
+      kuma.tcp.name: "My App (Port)"
+      kuma.tcp.type: "tcp"
+      kuma.tcp.hostname: "my-app"
+      kuma.tcp.port: "8080"
+```
+
+> **Note:** Flat labels (`kuma.<field>`) and named labels (`kuma.<name>.<field>`) cannot be mixed on the same container. Use one scheme or the other.
+
+> **Default name:** If `kuma.<monitor_name>.name` is omitted, the monitor is named `<container_name> (<monitor_name>)` automatically.
 
 ---
 
