@@ -10,6 +10,15 @@ logger = logging.getLogger(__name__)
 _STRIP_FIELDS = {"active", "_group", "_tags", "_container_key", "tags"}
 
 
+class _PatchedApi(UptimeKumaApi):
+    """Injects fields missing from uptime-kuma-api 1.2.1 for Kuma v2 compatibility."""
+
+    def _call(self, event, data=None):
+        if event in ("add", "editMonitor") and isinstance(data, dict):
+            data.setdefault("conditions", "[]")
+        return super()._call(event, data)
+
+
 class KumaClient:
     def __init__(self, base_url: str, username: str, password: str):
         self.base_url = base_url.rstrip("/")
@@ -24,7 +33,7 @@ class KumaClient:
             except Exception:
                 pass
 
-        self.api = UptimeKumaApi(self.base_url)
+        self.api = _PatchedApi(self.base_url)
         self.api.login(self.username, self.password)
         logger.info("Connected to Uptime Kuma via Socket.IO")
 
