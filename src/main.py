@@ -33,6 +33,13 @@ def sync(
     desired_keys = set(desired.keys())
     existing_keys = set(existing.keys())
 
+    group_cache: dict[str, int] = {}
+
+    def resolve_group(name: str) -> int:
+        if name not in group_cache:
+            group_cache[name] = kuma.find_or_create_group(name)
+        return group_cache[name]
+
     for key in desired_keys - existing_keys:
         monitor_cfg = desired[key].copy()
         group_name = monitor_cfg.pop("_group", None)
@@ -40,8 +47,7 @@ def sync(
         container_key = monitor_cfg.pop("_container_key", key)
 
         if group_name:
-            parent_id = kuma.find_or_create_group(group_name)
-            monitor_cfg["parent"] = parent_id
+            monitor_cfg["parent"] = resolve_group(group_name)
 
         monitor_cfg.pop("tags", None)
 
@@ -71,8 +77,7 @@ def sync(
         monitor_id = existing_monitor["id"]
 
         if group_name:
-            parent_id = kuma.find_or_create_group(group_name)
-            monitor_cfg["parent"] = parent_id
+            monitor_cfg["parent"] = resolve_group(group_name)
 
         changed = False
         for field, new_val in monitor_cfg.items():
