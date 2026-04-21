@@ -134,9 +134,19 @@ def main() -> None:
     kuma.wait_ready()
     sync(watcher, kuma, config.MANAGED_TAG)
 
+    _debounce_timer: threading.Timer | None = None
+    _debounce_lock = threading.Lock()
+
     def on_event():
-        time.sleep(2)
-        sync(watcher, kuma, config.MANAGED_TAG)
+        nonlocal _debounce_timer
+        with _debounce_lock:
+            if _debounce_timer is not None:
+                _debounce_timer.cancel()
+            _debounce_timer = threading.Timer(
+                5.0, sync, args=(watcher, kuma, config.MANAGED_TAG)
+            )
+            _debounce_timer.daemon = True
+            _debounce_timer.start()
 
     event_thread = threading.Thread(
         target=watcher.listen_events,
