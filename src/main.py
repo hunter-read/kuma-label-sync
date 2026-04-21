@@ -79,16 +79,20 @@ def sync(
         if group_name:
             monitor_cfg["parent"] = resolve_group(group_name)
 
-        changed = False
+        changed_field = None
         for field, new_val in monitor_cfg.items():
             if field.startswith("_"):
                 continue
             old_val = existing_monitor.get(field)
             if old_val != new_val:
-                changed = True
+                changed_field = field
+                logger.debug(
+                    "Monitor %d %r: %r → %r",
+                    monitor_id, field, old_val, new_val,
+                )
                 break
 
-        if changed:
+        if changed_field:
             try:
                 kuma.edit_monitor(monitor_id, monitor_cfg)
             except Exception:

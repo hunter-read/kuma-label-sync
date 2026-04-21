@@ -11,7 +11,18 @@ _STRIP_FIELDS = {"active", "_group", "_tags", "_container_key", "tags"}
 
 
 class _PatchedApi(UptimeKumaApi):
-    """Injects fields missing from uptime-kuma-api 1.2.1 for Kuma v2 compatibility."""
+    """Patches uptime-kuma-api 1.2.1 for Kuma v2 compatibility."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # v2 emits updateMonitorIntoList (partial) instead of monitorList after
+        # add/edit, so the library's cached snapshot never sees new monitors.
+        self.sio.on("updateMonitorIntoList", self._event_update_monitor_into_list)
+
+    def _event_update_monitor_into_list(self, data: dict) -> None:
+        if self._event_data.get("monitorList") is None:
+            self._event_data["monitorList"] = {}
+        self._event_data["monitorList"].update(data)
 
     def _call(self, event, data=None):
         if event in ("add", "editMonitor") and isinstance(data, dict):
