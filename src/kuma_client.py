@@ -3,6 +3,7 @@ import time
 from typing import Optional
 
 from uptime_kuma_api import UptimeKumaApi, MonitorType
+from uptime_kuma_api import UptimeKumaException
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,17 @@ class KumaClient:
     def _ensure_connected(self) -> None:
         if self.api is None:
             self._connect()
+
+    def _call(self, fn, *args, **kwargs):
+        self._ensure_connected()
+        try:
+            return fn(*args, **kwargs)
+        except UptimeKumaException as e:
+            if "not logged in" in str(e).lower():
+                logger.warning("Session expired, reconnecting…")
+                self._connect()
+                return fn(*args, **kwargs)
+            raise
 
     def wait_ready(self, timeout: int = 120) -> None:
         start = time.time()
